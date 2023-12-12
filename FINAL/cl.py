@@ -1,50 +1,39 @@
 import socket
 import threading
 
-def send_msg(conn, msg):
-   conn.send(msg.encode('utf-8'))
+class Client:
+    def __init__(self, host='0.0.0.0', port=55555):
+        self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.client.connect((host, port))
 
-def receive_msg(conn):
-   while True:
-       try:
-           msg = conn.recv(1024)
-           if not msg:
-               break
-           print(f"Message received: {msg.decode('utf-8')}")
-       except ConnectionResetError:
-           print("Receive task cancelled.")
-       except Exception as e:
-           print(f"Error in receive_msg: {e}")
-       finally:
-           print("Exiting receive_msg loop")
+    def receive(self):
+        while True:
+            try:
+                message = self.client.recv(1024).decode('ascii')
+                print(message)
+            except:
+                print("¡Desconectado del servidor!")
+                self.client.close()
+                break
 
-def read_user_entry(conn):
-   while True:
-       msg = input(">> ")
-       if msg == "exit":
-           break
-       send_msg(conn, f'{msg}\n')
-   print("Exiting read_user_entry loop")
+    def write(self):
+        while True:
+            message = input(">> ")
+            if message.startswith('/join'):
+                room_name = message[6:]
+                self.client.send(f'/join {room_name}'.encode('ascii'))
+            elif message.startswith('/leave'):
+                room_name = message[7:]
+                self.client.send(f'/leave {room_name}'.encode('ascii'))
+            else:
+                self.client.send(message.encode('ascii'))
 
-def main():
-   name = input("Put your name: ")
-   conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-   conn.connect(('localhost', 3000))
+    def run(self):
+        receive_thread = threading.Thread(target=self.receive)
+        receive_thread.start()
 
-   input_future = threading.Thread(target=input, args=(">> ",))
-   input_future.start()
+        write_thread = threading.Thread(target=self.write)
+        write_thread.start()
 
-   threading.Thread(target=receive_msg, args=(conn,)).start()
-   threading.Thread(target=read_user_entry, args=(conn,)).start()
-
-   try:
-       print("Connection successfully!, you can now send messages.")
-       while True:
-           pass
-   except KeyboardInterrupt:
-       conn.close()
-   finally:
-       print("Exiting main loop")
-
-if __name__ == '__main__':
-   main()
+client = Client()
+client.run()
